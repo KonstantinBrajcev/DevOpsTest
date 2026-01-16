@@ -92,49 +92,30 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:latest
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:${{ github.sha }}
 
-      - name: Deploy to Shared Hosting (Alternative)
+      - name: Deploy Django (Ultra Short)
         if: success()
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
-          TARGET_DIR: "~/www/jelezo.by/DevOpsTest"
         run: |
-          echo "🚀 Альтернативный деплой на shared хостинг"
-          echo "=========================================="
-          echo "Причина: Docker недоступен на целевом сервере"
-          echo "Решение: Традиционное развертывание Django"
+          sudo apt-get install -y sshpass
+          DIR="/var/www/user2142861/data/www/jelezo.by/DevOpsTest"
+          PY="/var/www/user2142861/data/.localpython/bin/python3"
 
-          # Установка sshpass
-          if ! command -v sshpass &> /dev/null; then
-            echo "Устанавливаем sshpass..."
-            sudo apt-get update -qq && sudo apt-get install -y sshpass
-          fi
+          sshpass -p "$DEPLOY_PASSWORD" ssh $DEPLOY_USER@$DEPLOY_HOST "
+            mkdir -p $DIR && cd $DIR && rm -rf *
+          "
 
-          # Простой деплой
-          echo "📤 Копируем файлы..."
-          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
-            $DEPLOY_USER@$DEPLOY_HOST "mkdir -p $TARGET_DIR && rm -rf $TARGET_DIR/*"
+          tar -czf - ./app | sshpass -p "$DEPLOY_PASSWORD" ssh $DEPLOY_USER@$DEPLOY_HOST "tar -xzf - -C $DIR"
 
-          # Копируем только app (без Docker файлов)
-          tar -czf - -C ./app . | \
-          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
-            $DEPLOY_USER@$DEPLOY_HOST "tar -xzf - -C $TARGET_DIR"
+          sshpass -p "$DEPLOY_PASSWORD" ssh $DEPLOY_USER@$DEPLOY_HOST "
+            cd $DIR/app &&
+            $PY -m pip install --user -r requirements.txt &&
+            cd src &&
+            $PY manage.py migrate &&
+            $PY manage.py collectstatic --noinput &&
+            nohup $PY manage.py runserver 0.0.0.0:8000 &
+          "
 
-          echo "🐍 Настраиваем Django..."
-          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
-            $DEPLOY_USER@$DEPLOY_HOST "\
-            cd $TARGET_DIR && \
-            echo 'Установка зависимостей...' && \
-            python3 -m pip install --user -r requirements.txt && \
-            cd src && \
-            echo 'Запуск миграций...' && \
-            python manage.py migrate && \
-            echo 'Сборка статики...' && \
-            python manage.py collectstatic --noinput && \
-            echo 'Запуск сервера...' && \
-            echo 'Приложение запущено на порту 8000'"
-
-          echo "✅ Альтернативный деплой завершен!"
-          echo "📊 Приложение должно быть доступно по адресу:"
-          echo "   http://178.159.242.118:8000"
+          echo "✅ Django запущен"
