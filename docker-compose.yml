@@ -35,7 +35,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - static_volume:/staticfiles  # Тот же том, но по пути, который ожидает Nginx
+      - static_volume:/staticfiles
     depends_on:
       - web
 
