@@ -97,8 +97,8 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }} # Измените имя секрета!
-          TARGET_DIR: "/home/user2142861/www/jelezo.by/DevOpsTest"
+          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+          TARGET_DIR: "~/www/jelezo.by/DevOpsTest"
         run: |
           # Устанавливаем sshpass
           sudo apt-get update && sudo apt-get install -y sshpass
