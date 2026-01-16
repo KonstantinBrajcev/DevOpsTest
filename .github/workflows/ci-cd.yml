@@ -92,7 +92,7 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:latest
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:${{ github.sha }}
 
-      - name: Deploy to server
+      - name: Deploy to shared hosting
         if: success()
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -100,26 +100,33 @@ jobs:
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
           TARGET_DIR: "~/www/jelezo.by/DevOpsTest"
         run: |
-          # Устанавливаем sshpass
           sudo apt-get update && sudo apt-get install -y sshpass
 
-          # 1. Останавливаем старые контейнеры
-          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
-            $DEPLOY_USER@$DEPLOY_HOST "\
-            cd $TARGET_DIR 2>/dev/null && docker-compose -f docker-compose.prod.yml down || true"
+          echo "🚀 Деплой на shared хостинг..."
 
-          # 2. Создаем папку
+          # 1. Копируем файлы
           sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
             $DEPLOY_USER@$DEPLOY_HOST "mkdir -p $TARGET_DIR"
 
-          # 3. Копируем файлы (используем scp с sshpass)
-          tar -czf - . | \
+          # Копируем проект
+          tar -czf - --exclude='.git' --exclude='.github' --exclude='__pycache__' . | \
           sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
             $DEPLOY_USER@$DEPLOY_HOST "tar -xzf - -C $TARGET_DIR"
 
-          # 4. Запускаем
+          # 2. Настраиваем Django без Docker
           sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
             $DEPLOY_USER@$DEPLOY_HOST "\
             cd $TARGET_DIR && \
-            docker-compose -f docker-compose.prod.yml pull && \
-            docker-compose -f docker-compose.prod.yml up -d"
+            echo 'Настраиваем Django...' && \
+            python3 -m venv venv && \
+            source venv/bin/activate && \
+            pip install -r app/requirements.txt && \
+            cd app/src && \
+            echo 'Применяем миграции...' && \
+            python manage.py migrate --noinput && \
+            echo 'Собираем статику...' && \
+            python manage.py collectstatic --noinput && \
+            echo 'Запускаем Gunicorn...' && \
+            nohup gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 > django.log 2>&1 &"
+
+          echo "✅ Деплой завершен!"
