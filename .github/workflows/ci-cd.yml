@@ -115,7 +115,7 @@ jobs:
             cd src &&
             $PY manage.py migrate &&
             $PY manage.py collectstatic --noinput &&
-            nohup $PY manage.py runserver 0.0.0.0:8000 &
+            nohup $PY manage.py runserver 0.0.0.0:8008 &
           "
 
           echo "✅ Django запущен"
