@@ -155,7 +155,7 @@ jobs:
             cd '$TARGET'/src && \
             '$PYTHON' manage.py migrate && \
             '$PYTHON' manage.py collectstatic --noinput && \
-            nohup '$PYTHON' manage.py runserver 0.0.0.0:8000 &
+            nohup '$PYTHON' manage.py runserver 0.0.0.0:8008 &
             "
 
-          echo "✅ Готово! http://178.159.242.118:8000"
+          echo "✅ Готово! http://178.159.242.118:8008"
