@@ -92,30 +92,70 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:latest
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:${{ github.sha }}
 
-      - name: Deploy Django (Ultra Short)
+      - name: Debug SSH Connection
+        run: |
+          echo "🔍 Диагностика SSH..."
+          echo "HOST: ${{ secrets.DEPLOY_HOST }}"
+          echo "USER: ${{ secrets.DEPLOY_USER }}"
+          echo "PASSWORD: [скрыто]"
+
+          # Проверяем доступность сервера
+          timeout 5 nc -zv ${{ secrets.DEPLOY_HOST }} 22 && echo "✅ Порт 22 открыт" || echo "❌ Порт 22 закрыт"
+
+          # Тест с sshpass
+          echo "Тестируем sshpass..."
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -v -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=5 \
+            -o BatchMode=yes \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "whoami && pwd" || echo "SSH тест не удался"
+
+      - name: Deploy Django Step by Step
         if: success()
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
         run: |
-          sudo apt-get install -y sshpass
-          DIR="/var/www/user2142861/data/www/jelezo.by/DevOpsTest"
-          PY="/var/www/user2142861/data/.localpython/bin/python3"
+          # Установка
+          sudo apt-get update && sudo apt-get install -y sshpass
 
-          sshpass -p "$DEPLOY_PASSWORD" ssh $DEPLOY_USER@$DEPLOY_HOST "
-            mkdir -p $DIR && cd $DIR && rm -rf *
-          "
+          # Переменные
+          TARGET="/var/www/user2142861/data/www/jelezo.by/DevOpsTest"
+          PYTHON="/var/www/user2142861/data/.localpython/bin/python3"
 
-          tar -czf - ./app | sshpass -p "$DEPLOY_PASSWORD" ssh $DEPLOY_USER@$DEPLOY_HOST "tar -xzf - -C $DIR"
+          # Шаг 1: Тест подключения
+          echo "🔗 Тест SSH..."
+          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            $DEPLOY_USER@$DEPLOY_HOST "echo '✅ Подключено как:' && whoami"
 
-          sshpass -p "$DEPLOY_PASSWORD" ssh $DEPLOY_USER@$DEPLOY_HOST "
-            cd $DIR/app &&
-            $PY -m pip install --user -r requirements.txt &&
-            cd src &&
-            $PY manage.py migrate &&
-            $PY manage.py collectstatic --noinput &&
-            nohup $PY manage.py runserver 0.0.0.0:8008 &
-          "
+          # Шаг 2: Подготовка
+          echo "📁 Подготовка..."
+          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            $DEPLOY_USER@$DEPLOY_HOST "mkdir -p '$TARGET' && cd '$TARGET' && ls -la"
 
-          echo "✅ Django запущен"
+          # Шаг 3: Копирование
+          echo "📤 Копирование..."
+          cd app
+          tar -czf - . > /tmp/app.tar.gz
+          sshpass -p "$DEPLOY_PASSWORD" scp -o StrictHostKeyChecking=no \
+            /tmp/app.tar.gz $DEPLOY_USER@$DEPLOY_HOST:"$TARGET/"
+          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            $DEPLOY_USER@$DEPLOY_HOST "cd '$TARGET' && tar -xzf app.tar.gz && rm app.tar.gz"
+          cd ..
+
+          # Шаг 4: Установка
+          echo "🐍 Установка Django..."
+          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            $DEPLOY_USER@$DEPLOY_HOST "cd '$TARGET' && '$PYTHON' -m pip install --user -r requirements.txt"
+
+          # Шаг 5: Запуск
+          echo "🚀 Запуск..."
+          sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
+            $DEPLOY_USER@$DEPLOY_HOST "\
+            cd '$TARGET'/src && \
+            '$PYTHON' manage.py migrate && \
+            '$PYTHON' manage.py collectstatic --noinput && \
+            nohup '$PYTHON' manage.py runserver 0.0.0.0:8000 &
+            "
+
+          echo "✅ Готово! http://178.159.242.118:8000"
