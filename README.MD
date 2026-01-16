@@ -54,9 +54,9 @@ django-devops-test/
 │       │   ├── urls.py
 │       │   └── wsgi.py
 │       └── myapp/            # Основное приложение
-│           ├── views.py      # "Hello, World!" страница
+│           ├── views.py      # страница "Hello, World!"
 │           ├── urls.py
-│           └── templates/    # HTML шаблоны (создайте если нужно)
+│           └── templates/    # HTML шаблоны
 │               └── myapp/
 │                   └── index.html
 ├── nginx/                     # Nginx конфигурация
@@ -66,3 +66,22 @@ django-devops-test/
 ├── docker-compose.prod.yml   # Для продакшена
 ├── .env.production.example   # Пример переменных окружения
 └── README.md
+
+
+## Ограничения shared хостинга
+
+На данном хостинге обнаружены следующие ограничения:
+- ❌ Нет root-прав (sudo недоступен)
+- ❌ Нельзя установить Docker/Docker Compose
+- ❌ Нет пакетных менеджеров (apt-get, yum, dnf)
+- ✅ Доступен Python 3.6.8
+- ✅ Работает SSH
+
+## Альтернативное решение
+
+В связи с ограничениями, реализовано:
+1. **Локально**: Полная Docker-оркестрация (PostgreSQL + Django + Nginx)
+2. **CI/CD**: Автоматические тесты и сборка Docker-образов
+3. **Деплой**: Традиционное развертывание Django на shared хостинге
+
+Для production рекомендуется использовать VPS с Docker.

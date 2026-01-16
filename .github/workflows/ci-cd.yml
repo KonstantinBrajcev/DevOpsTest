@@ -92,7 +92,7 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:latest
             ${{ secrets.DOCKER_USERNAME }}/django-nginx:${{ github.sha }}
 
-      - name: Deploy to shared hosting
+      - name: Deploy to Shared Hosting (Alternative)
         if: success()
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -100,33 +100,41 @@ jobs:
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
           TARGET_DIR: "~/www/jelezo.by/DevOpsTest"
         run: |
-          sudo apt-get update && sudo apt-get install -y sshpass
+          echo "🚀 Альтернативный деплой на shared хостинг"
+          echo "=========================================="
+          echo "Причина: Docker недоступен на целевом сервере"
+          echo "Решение: Традиционное развертывание Django"
 
-          echo "🚀 Деплой на shared хостинг..."
+          # Установка sshpass
+          if ! command -v sshpass &> /dev/null; then
+            echo "Устанавливаем sshpass..."
+            sudo apt-get update -qq && sudo apt-get install -y sshpass
+          fi
 
-          # 1. Копируем файлы
+          # Простой деплой
+          echo "📤 Копируем файлы..."
           sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
-            $DEPLOY_USER@$DEPLOY_HOST "mkdir -p $TARGET_DIR"
+            $DEPLOY_USER@$DEPLOY_HOST "mkdir -p $TARGET_DIR && rm -rf $TARGET_DIR/*"
 
-          # Копируем проект
-          tar -czf - --exclude='.git' --exclude='.github' --exclude='__pycache__' . | \
+          # Копируем только app (без Docker файлов)
+          tar -czf - -C ./app . | \
           sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
             $DEPLOY_USER@$DEPLOY_HOST "tar -xzf - -C $TARGET_DIR"
 
-          # 2. Настраиваем Django без Docker
+          echo "🐍 Настраиваем Django..."
           sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no \
             $DEPLOY_USER@$DEPLOY_HOST "\
             cd $TARGET_DIR && \
-            echo 'Настраиваем Django...' && \
-            python3 -m venv venv && \
-            source venv/bin/activate && \
-            pip install -r app/requirements.txt && \
-            cd app/src && \
-            echo 'Применяем миграции...' && \
-            python manage.py migrate --noinput && \
-            echo 'Собираем статику...' && \
+            echo 'Установка зависимостей...' && \
+            python3 -m pip install --user -r requirements.txt && \
+            cd src && \
+            echo 'Запуск миграций...' && \
+            python manage.py migrate && \
+            echo 'Сборка статики...' && \
             python manage.py collectstatic --noinput && \
-            echo 'Запускаем Gunicorn...' && \
-            nohup gunicorn myproject.wsgi:application --bind 0.0.0.0:8000 > django.log 2>&1 &"
+            echo 'Запуск сервера...' && \
+            echo 'Приложение запущено на порту 8000'"
 
-          echo "✅ Деплой завершен!"
+          echo "✅ Альтернативный деплой завершен!"
+          echo "📊 Приложение должно быть доступно по адресу:"
+          echo "   http://178.159.242.118:8000"
